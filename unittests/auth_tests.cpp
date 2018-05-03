@@ -251,6 +251,16 @@ BOOST_AUTO_TEST_CASE(link_auths) { try {
    // Relink the same auth should fail
    BOOST_CHECK_THROW( chain.link_authority("alice", "eosio", "spending",  "reqauth"), action_validate_exception);
 
+   // update a permissing link (via relink)
+   const auto eating_priv_key = chain.get_private_key("alice", "eating");
+   const auto eating_pub_key = eating_priv_key.get_public_key();
+   chain.set_authority("alice", "eating", eating_pub_key, "active");
+
+   chain.link_authority("alice", "eosio", "eating",  "reqauth");
+   chain.push_reqauth("alice", { permission_level{N(alice), "eating"} }, { eating_priv_key });
+
+   BOOST_CHECK_THROW(chain.push_reqauth("alice", { permission_level{N(alice), "spending"} }, { spending_priv_key }), tx_irrelevant_auth);
+
    // Unlink alice with eosio reqauth
    chain.unlink_authority("alice", "eosio", "reqauth");
    // Now, req auth action with alice's spending key should fail
@@ -459,9 +469,7 @@ BOOST_AUTO_TEST_CASE( linkauth_special ) { try {
 
    const auto& tester_account = N(tester);
    std::vector<transaction_id_type> ids;
-   chain.set_code(config::system_account_name, eosio_system_wast);
-   chain.set_abi(config::system_account_name, eosio_system_abi);
-
+ 
    chain.produce_blocks();
    chain.create_account(N(currency));
 
@@ -470,12 +478,7 @@ BOOST_AUTO_TEST_CASE( linkauth_special ) { try {
    chain.create_account(N(tester2));
    chain.produce_blocks();
 
-   chain.push_action(config::system_account_name, updateauth::get_name(), tester_account, fc::mutable_variant_object()
-           ("account", "tester")
-           ("permission", "first")
-           ("parent", "active")
-           ("auth",  authority(chain.get_public_key(tester_account, "first"), 5))
-   );
+   chain.set_authority("tester", "first", chain.get_public_key(tester_account, "first"), "active");
 
    auto validate_disallow = [&] (const char *type) {
    BOOST_REQUIRE_EXCEPTION(
