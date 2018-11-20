@@ -120,5 +120,56 @@ BOOST_FIXTURE_TEST_CASE( get_scope_test, TESTER ) try {
 
 } FC_LOG_AND_RETHROW() /// get_scope_test
 
+BOOST_FIXTURE_TEST_CASE( key_convertion_test, TESTER ) try {
+
+   // decimal to uint64_t
+   BOOST_REQUIRE_EQUAL(0, chain_apis::convert_to_type<uint64_t>("0", ""));
+   BOOST_REQUIRE_EQUAL(0, chain_apis::convert_to_type<uint64_t>("00000", ""));
+   BOOST_REQUIRE_EQUAL(5, chain_apis::convert_to_type<uint64_t>("5", ""));
+   BOOST_REQUIRE_EQUAL(111111111111ull, chain_apis::convert_to_type<uint64_t>("111111111111", ""));
+   BOOST_REQUIRE_EQUAL(2222222222222ull, chain_apis::convert_to_type<uint64_t>("2222222222222", ""));
+   BOOST_REQUIRE_EQUAL(LLONG_MAX, chain_apis::convert_to_type<uint64_t>("9223372036854775807", ""));
+   BOOST_REQUIRE_EQUAL(LLONG_MAX+1, chain_apis::convert_to_type<uint64_t>("9223372036854775808", ""));
+   BOOST_REQUIRE_EQUAL(ULLONG_MAX-1, chain_apis::convert_to_type<uint64_t>("18446744073709551614", ""));
+   BOOST_REQUIRE_EQUAL(ULLONG_MAX, chain_apis::convert_to_type<uint64_t>("18446744073709551615", ""));
+
+   // string to name
+   BOOST_REQUIRE_EQUAL(0, chain_apis::convert_to_type<uint64_t>("", ""));
+   BOOST_REQUIRE_EQUAL(N(.a), chain_apis::convert_to_type<uint64_t>(".a", ""));
+   BOOST_REQUIRE_EQUAL(N(.a..1), chain_apis::convert_to_type<uint64_t>(".a..1", ""));
+   BOOST_REQUIRE_EQUAL(N(a), chain_apis::convert_to_type<uint64_t>("a", ""));
+   BOOST_REQUIRE_EQUAL(N(a.com), chain_apis::convert_to_type<uint64_t>("a.com", ""));
+   BOOST_REQUIRE_EQUAL(N(a), chain_apis::convert_to_type<uint64_t>(" a", ""));
+   BOOST_REQUIRE_EQUAL(N(3), chain_apis::convert_to_type<uint64_t>(" 3", ""));
+   BOOST_REQUIRE_EQUAL(N(111111111111), chain_apis::convert_to_type<uint64_t>(" 111111111111", ""));
+   BOOST_REQUIRE_EQUAL(N(2222222222222), chain_apis::convert_to_type<uint64_t>(" 2222222222222", ""));
+   BOOST_REQUIRE_EQUAL(N(11111111111.1), chain_apis::convert_to_type<uint64_t>("11111111111.1", ""));
+   BOOST_REQUIRE_EQUAL(N(11111111111.5), chain_apis::convert_to_type<uint64_t>("11111111111.5", ""));
+   BOOST_REQUIRE_EQUAL(N(11111111111.a), chain_apis::convert_to_type<uint64_t>("11111111111.a", ""));
+   BOOST_REQUIRE_EQUAL(N(12345abcdefg), chain_apis::convert_to_type<uint64_t>("12345abcdefg", ""));
+   BOOST_REQUIRE_EQUAL(N(hijklmnopqrs), chain_apis::convert_to_type<uint64_t>("hijklmnopqrs", ""));
+   BOOST_REQUIRE_EQUAL(N(tuvwxyz.1234), chain_apis::convert_to_type<uint64_t>("tuvwxyz.1234", ""));
+
+   BOOST_REQUIRE_EQUAL(SY(4,EOS), chain_apis::convert_to_type<uint64_t>("4,EOS", ""));
+   BOOST_REQUIRE_EQUAL(SY(0,AAA), chain_apis::convert_to_type<uint64_t>("0,AAA", ""));
+   BOOST_REQUIRE_EQUAL(SY(18,ABCDEFG), chain_apis::convert_to_type<uint64_t>("18,ABCDEFG", ""));
+   BOOST_REQUIRE_EQUAL(SY(18,ZZZZZZZ), chain_apis::convert_to_type<uint64_t>("18,ZZZZZZZ", ""));
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("19,ABCDEFG", ""), chain_type_exception);
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("4,ABCDEFGH", ""), chain_type_exception);
+
+   BOOST_REQUIRE_EQUAL(SY(0,EOS)>>8, chain_apis::convert_to_type<uint64_t>("EOS", ""));
+   BOOST_REQUIRE_EQUAL(SY(0,ABCDEFG)>>8, chain_apis::convert_to_type<uint64_t>("ABCDEFG", ""));
+   BOOST_REQUIRE_EQUAL(SY(0,ZZZZZZZ)>>8, chain_apis::convert_to_type<uint64_t>("ZZZZZZZ", ""));
+
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("_", ""), chain_type_exception);
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>(" 6", ""), chain_type_exception);
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("0.1", ""), chain_type_exception);
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("Eos", ""), chain_type_exception);
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("EOS123", ""), chain_type_exception);
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("12345abcdefghi", ""), chain_type_exception);
+   BOOST_CHECK_THROW(chain_apis::convert_to_type<uint64_t>("18446744073709551616", ""), chain_type_exception);
+
+} FC_LOG_AND_RETHROW() /// key_convertion_test
+
 BOOST_AUTO_TEST_SUITE_END()
 
