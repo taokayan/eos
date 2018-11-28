@@ -224,14 +224,14 @@ namespace chainbase {
          }
 
          template<typename Modifier>
-         void modify( const value_type& obj, Modifier&& m ) {
-            on_modify( obj );
+         void modify( const value_type& obj, Modifier&& m, bool move_old_value = false) {
+            on_modify( obj, move_old_value );
             auto ok = _indices.modify( _indices.iterator_to( obj ), m );
             if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
          }
 
-         void remove( const value_type& obj ) {
-            on_remove( obj );
+         void remove( const value_type& obj, bool move_old_value = false ) {
+            on_remove( obj, move_old_value );
             _indices.erase( _indices.iterator_to( obj ) );
          }
 
@@ -480,7 +480,7 @@ namespace chainbase {
       private:
          bool enabled()const { return _stack.size(); }
 
-         void on_modify( const value_type& v ) {
+         void on_modify( const value_type& v, bool move_old_value ) {
             if( !enabled() ) return;
 
             auto& head = _stack.back();
@@ -492,10 +492,14 @@ namespace chainbase {
             if( itr != head.old_values.end() )
                return;
 
-            head.old_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
+            if (move_old_value) {
+               head.old_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
+            } else {
+               head.old_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
+            }
          }
 
-         void on_remove( const value_type& v ) {
+         void on_remove( const value_type& v, bool move_old_value ) {
             if( !enabled() ) return;
 
             auto& head = _stack.back();
@@ -514,7 +518,11 @@ namespace chainbase {
             if( head.removed_values.count( v.id ) )
                return;
 
-            head.removed_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
+            if (move_old_value) {
+               head.removed_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
+            } else {
+               head.removed_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
+            }
          }
 
          void on_create( const value_type& v ) {
@@ -863,19 +871,19 @@ namespace chainbase {
          }
 
          template<typename ObjectType, typename Modifier>
-         void modify( const ObjectType& obj, Modifier&& m )
+         void modify( const ObjectType& obj, Modifier&& m, bool move_old_value = false )
          {
              CHAINBASE_REQUIRE_WRITE_LOCK("modify", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
-             get_mutable_index<index_type>().modify( obj, m );
+             get_mutable_index<index_type>().modify( obj, m, move_old_value);
          }
 
          template<typename ObjectType>
-         void remove( const ObjectType& obj )
+         void remove( const ObjectType& obj, bool move_old_value = false )
          {
              CHAINBASE_REQUIRE_WRITE_LOCK("remove", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
-             return get_mutable_index<index_type>().remove( obj );
+             return get_mutable_index<index_type>().remove( obj, move_old_value );
          }
 
          template<typename ObjectType, typename Constructor>
