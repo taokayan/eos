@@ -1,5 +1,5 @@
 #pragma once
-#include <eosio/chain/block_header.hpp>
+#include <eosio/chain/block.hpp>
 #include <eosio/chain/incremental_merkle.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
@@ -72,6 +72,8 @@ namespace detail {
 }
 
 struct pending_block_header_state : public detail::block_header_state_common {
+   uint32_t                             prev_dpos_proposed_irreversible_blocknum = 0;
+
    protocol_feature_activation_set_ptr  prev_activated_protocol_features;
    detail::schedule_info                prev_pending_schedule;
    bool                                 was_pending_promoted = false;
@@ -81,13 +83,15 @@ struct pending_block_header_state : public detail::block_header_state_common {
    uint32_t                             active_schedule_version = 0;
    uint16_t                             confirmed = 1;
 
+   void maybe_promote_lib(const signed_block &block);
+
    signed_block_header make_block_header( const checksum256_type& transaction_mroot,
                                           const checksum256_type& action_mroot,
                                           const optional<producer_authority_schedule>& new_producers,
                                           vector<digest_type>&& new_protocol_feature_activations,
                                           const protocol_feature_set& pfs)const;
 
-   block_header_state  finish_next( const signed_block_header& h,
+   block_header_state  finish_next( const signed_block& h,
                                     vector<signature_type>&& additional_signatures,
                                     const protocol_feature_set& pfs,
                                     const std::function<void( block_timestamp_type,
@@ -95,7 +99,7 @@ struct pending_block_header_state : public detail::block_header_state_common {
                                                               const vector<digest_type>& )>& validator,
                                     bool skip_validate_signee = false )&&;
 
-   block_header_state  finish_next( signed_block_header& h,
+   block_header_state  finish_next( signed_block& h,
                                     const protocol_feature_set& pfs,
                                     const std::function<void( block_timestamp_type,
                                                               const flat_set<digest_type>&,
@@ -103,7 +107,7 @@ struct pending_block_header_state : public detail::block_header_state_common {
                                     const signer_callback_type& signer )&&;
 
 protected:
-   block_header_state  _finish_next( const signed_block_header& h,
+   block_header_state  _finish_next( const signed_block& h,
                                      const protocol_feature_set& pfs,
                                      const std::function<void( block_timestamp_type,
                                                                const flat_set<digest_type>&,
@@ -135,7 +139,7 @@ struct block_header_state : public detail::block_header_state_common {
 
    pending_block_header_state  next( block_timestamp_type when, uint16_t num_prev_blocks_to_confirm )const;
 
-   block_header_state   next( const signed_block_header& h,
+   block_header_state   next( const signed_block& h,
                               vector<signature_type>&& additional_signatures,
                               const protocol_feature_set& pfs,
                               const std::function<void( block_timestamp_type,

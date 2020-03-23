@@ -273,8 +273,31 @@ class producer_plugin_impl : public std::enable_shared_from_this<producer_plugin
 
       void on_block( const block_state_ptr& bsp ) {
          _unapplied_transactions.clear_applied( bsp );
-
-         ilog("on_block, id = ${id}", ("id", bsp->id));
+         for (auto &prod : _producers) {
+            signed_transaction trx;
+            action act;
+            permission_level pl;
+            pl.actor = prod;
+            pl.permission = N(active);
+            act.account = N(eosio);
+            act.name = N(confirmblock);
+            act.data.resize(8 + 32);
+            *(chain::account_name *)&act.data[0] = prod;
+            static_assert(sizeof(block_id_type) == 32);
+            *(block_id_type *)&(act.data[8]) = bsp->id;
+            act.authorization.push_back(pl);
+            trx.actions.push_back(act);
+            trx.expiration = fc::time_point::now() + fc::seconds(1);
+            trx.set_reference_block(bsp->id);
+            trx.max_cpu_usage_ms = 30;
+            trx.max_net_usage_words = 50000;
+            trx.delay_sec = 0;
+            private_key_type pri_key(private_key_type(std::string("5JURSKS1BrJ1TagNBw1uVSzTQL2m9eHGkjknWeZkjSt33Awtior")));
+            trx.sign(pri_key, chain_plug->chain().get_chain_id());
+            packed_transaction_ptr ptrx(new packed_transaction(trx));
+            on_incoming_transaction_async(ptrx, false, [&](const fc::static_variant<fc::exception_ptr, transaction_trace_ptr>& trace) {});
+            ilog("${p} to confirm block ${id}", ("p", prod)("id", bsp->id));
+         }
       }
 
       void on_block_header( const block_state_ptr& bsp ) {

@@ -63,6 +63,8 @@ namespace eosio { namespace chain {
       result.active_schedule_version                         = active_schedule.version;
       result.prev_activated_protocol_features                = activated_protocol_features;
 
+      result.prev_dpos_proposed_irreversible_blocknum        = dpos_proposed_irreversible_blocknum;
+
       result.valid_block_signing_authority                   = proauth.authority;
       result.producer                                        = proauth.producer_name;
 
@@ -221,7 +223,7 @@ namespace eosio { namespace chain {
    }
 
    block_header_state pending_block_header_state::_finish_next(
-                                 const signed_block_header& h,
+                                 const signed_block& h,
                                  const protocol_feature_set& pfs,
                                  const std::function<void( block_timestamp_type,
                                                            const flat_set<digest_type>&,
@@ -312,12 +314,71 @@ namespace eosio { namespace chain {
       }
 
       result.activated_protocol_features = std::move( new_activated_protocol_features );
-
+      
       return result;
    }
 
+   void pending_block_header_state::maybe_promote_lib(const signed_block& b) {
+
+      set<account_name> confirmer_list;
+
+      for( const auto& receipt : b.transactions ) {
+         if( receipt.trx.contains<packed_transaction>()) {
+            const auto& pt = receipt.trx.get<packed_transaction>();
+            const transaction &tx = pt.get_transaction();
+            for (const auto &act : tx.actions) {
+               if (act.account == N(eosio) && act.name == N(confirmblock) &&
+                  act.data.size() >= 8 + 32 &&
+                  *(block_id_type *)&(act.data[8]) == previous) {
+                  account_name confirmer = *(account_name *)&(act.data[0]);
+                  if (confirmer_list.find(confirmer) == confirmer_list.end() &&
+                     producer_to_last_implied_irb.find(confirmer) != 
+                     producer_to_last_implied_irb.end()) {
+                         confirmer_list.insert(confirmer);
+                         ilog("block ${b}: get extra confirm from ${a}", ("b", block_num)("a", confirmer));
+                  }
+               }
+            }
+         }
+      }
+      size_t count = 0;
+      for (auto &itr: producer_to_last_implied_irb) {
+         if (itr.first == producer || 
+             itr.second >= block_num - 1 ||
+            confirmer_list.find(itr.first) != confirmer_list.end()) {
+               ilog("producer ${a}", ("a", itr.first));
+               count++;
+            }
+      }
+
+      if (count * 3 > producer_to_last_implied_irb.size() * 2) {
+         if (dpos_proposed_irreversible_blocknum < block_num - 1) {
+            dpos_proposed_irreversible_blocknum = block_num - 1;
+         }
+         if (dpos_irreversible_blocknum < prev_dpos_proposed_irreversible_blocknum) {
+            dpos_irreversible_blocknum = prev_dpos_proposed_irreversible_blocknum;
+         }
+         if (confirm_count.size() > 1) {
+            int last =  confirm_count[confirm_count.size() - 1];
+            confirm_count.resize(1);
+            confirm_count[0] = last;
+         }
+         for (auto &itr: producer_to_last_implied_irb) { // update list
+            if (itr.second < dpos_irreversible_blocknum) {
+                  itr.second = dpos_irreversible_blocknum;
+            }
+         }
+         producer_to_last_implied_irb[producer] = dpos_proposed_irreversible_blocknum;
+         ilog("promote LIB for block ${n} to ${d}, propose ${p}", 
+            ("n", block_num)("d", dpos_irreversible_blocknum)("p", dpos_proposed_irreversible_blocknum));
+      } else {
+         ilog("LIB for block ${n} is ${d}, propose ${p}", 
+           ("n", block_num)("d", dpos_irreversible_blocknum)("p", dpos_proposed_irreversible_blocknum));
+      }
+   }
+
    block_header_state pending_block_header_state::finish_next(
-                                 const signed_block_header& h,
+                                 const signed_block& h,
                                  vector<signature_type>&& additional_signatures,
                                  const protocol_feature_set& pfs,
                                  const std::function<void( block_timestamp_type,
@@ -332,6 +393,7 @@ namespace eosio { namespace chain {
          EOS_ASSERT(wtmsig_enabled, producer_schedule_exception, "Block contains multiple signatures before WTMsig block signatures are enabled" );
       }
 
+      maybe_promote_lib(h);
       auto result = std::move(*this)._finish_next( h, pfs, validator );
 
       if( !additional_signatures.empty() ) {
@@ -347,7 +409,7 @@ namespace eosio { namespace chain {
    }
 
    block_header_state pending_block_header_state::finish_next(
-                                 signed_block_header& h,
+                                 signed_block& h,
                                  const protocol_feature_set& pfs,
                                  const std::function<void( block_timestamp_type,
                                                            const flat_set<digest_type>&,
@@ -357,6 +419,7 @@ namespace eosio { namespace chain {
    {
       auto pfa = prev_activated_protocol_features;
 
+      maybe_promote_lib(h);
       auto result = std::move(*this)._finish_next( h, pfs, validator );
       result.sign( signer );
       h.producer_signature = result.header.producer_signature;
@@ -378,7 +441,7 @@ namespace eosio { namespace chain {
     *  If the header specifies new_producers then apply them accordingly.
     */
    block_header_state block_header_state::next(
-                        const signed_block_header& h,
+                        const signed_block& h,
                         vector<signature_type>&& _additional_signatures,
                         const protocol_feature_set& pfs,
                         const std::function<void( block_timestamp_type,
