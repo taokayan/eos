@@ -368,7 +368,8 @@ namespace eosio { namespace chain {
                   itr.second = dpos_irreversible_blocknum;
             }
          }
-         producer_to_last_implied_irb[producer] = dpos_proposed_irreversible_blocknum;
+         if (producer_to_last_implied_irb.find(producer) != producer_to_last_implied_irb.end())
+            producer_to_last_implied_irb[producer] = dpos_proposed_irreversible_blocknum;
          ilog("promote LIB for block ${n} to ${d}, propose ${p}", 
             ("n", block_num)("d", dpos_irreversible_blocknum)("p", dpos_proposed_irreversible_blocknum));
       } else {
