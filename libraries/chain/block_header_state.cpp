@@ -321,6 +321,7 @@ namespace eosio { namespace chain {
    void pending_block_header_state::maybe_promote_lib(const signed_block& b) {
 
       set<account_name> confirmer_list;
+      std::stringstream ss;
 
       for( const auto& receipt : b.transactions ) {
          if( receipt.trx.contains<packed_transaction>()) {
@@ -335,18 +336,21 @@ namespace eosio { namespace chain {
                      producer_to_last_implied_irb.find(confirmer) != 
                      producer_to_last_implied_irb.end()) {
                          confirmer_list.insert(confirmer);
-                         ilog("block ${b}: get extra confirm from ${a}", ("b", block_num)("a", confirmer));
+                         ss << " " << confirmer;
                   }
                }
             }
          }
+      }
+      if (confirmer_list.size()) {
+         ilog("block ${b}, extra confirms from ${s}", ("b", block_num)("s", ss.str()));
       }
       size_t count = 0;
       for (auto &itr: producer_to_last_implied_irb) {
          if (itr.first == producer || 
              itr.second >= block_num - 1 ||
             confirmer_list.find(itr.first) != confirmer_list.end()) {
-               ilog("producer ${a}", ("a", itr.first));
+              // ilog("producer ${a}", ("a", itr.first));
                count++;
             }
       }

@@ -273,6 +273,7 @@ class producer_plugin_impl : public std::enable_shared_from_this<producer_plugin
 
       void on_block( const block_state_ptr& bsp ) {
          _unapplied_transactions.clear_applied( bsp );
+         size_t extra_confirms = 0;
          for (auto &prod : _producers) {
             signed_transaction trx;
             action act;
@@ -292,12 +293,13 @@ class producer_plugin_impl : public std::enable_shared_from_this<producer_plugin
             trx.max_cpu_usage_ms = 30;
             trx.max_net_usage_words = 50000;
             trx.delay_sec = 0;
-            private_key_type pri_key(private_key_type(std::string("5JURSKS1BrJ1TagNBw1uVSzTQL2m9eHGkjknWeZkjSt33Awtior")));
+            private_key_type pri_key(private_key_type(std::string("5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3")));
             trx.sign(pri_key, chain_plug->chain().get_chain_id());
             packed_transaction_ptr ptrx(new packed_transaction(trx));
             on_incoming_transaction_async(ptrx, false, [&](const fc::static_variant<fc::exception_ptr, transaction_trace_ptr>& trace) {});
-            ilog("${p} to confirm block ${id}", ("p", prod)("id", bsp->id));
+            extra_confirms++;
          }
+         ilog("sent ${n} extra confirms to block ${id}", ("n", extra_confirms)("id", bsp->id));
       }
 
       void on_block_header( const block_state_ptr& bsp ) {
