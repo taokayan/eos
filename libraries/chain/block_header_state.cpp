@@ -321,7 +321,7 @@ namespace eosio { namespace chain {
    void pending_block_header_state::maybe_promote_lib(const signed_block& b) {
 
       set<account_name> confirmer_list;
-      std::stringstream ss;
+      std::stringstream ss, ss2;
 
       for( const auto& receipt : b.transactions ) {
          if( receipt.trx.contains<packed_transaction>()) {
@@ -347,15 +347,17 @@ namespace eosio { namespace chain {
       }
       size_t count = 0;
       for (auto &itr: producer_to_last_implied_irb) {
-         if (itr.first == producer || 
-             itr.second >= block_num - 1 ||
+         ss2 << " " << itr.first << ":" << itr.second;
+         if (itr.first == producer || itr.second >= block_num - 1 ||
             confirmer_list.find(itr.first) != confirmer_list.end()) {
-              // ilog("producer ${a}", ("a", itr.first));
                count++;
+               ss2 << "*";
             }
       }
+      ilog("producer_to_last_implied_irb:${s}", ("s", ss2.str()));
 
       if (count * 3 > producer_to_last_implied_irb.size() * 2) {
+         uint32_t old_lib = dpos_irreversible_blocknum;
          if (dpos_proposed_irreversible_blocknum < block_num - 1) {
             dpos_proposed_irreversible_blocknum = block_num - 1;
          }
@@ -367,17 +369,20 @@ namespace eosio { namespace chain {
             confirm_count.resize(1);
             confirm_count[0] = last;
          }
-         for (auto &itr: producer_to_last_implied_irb) { // update list
-            if (itr.second < dpos_irreversible_blocknum) {
-                  itr.second = dpos_irreversible_blocknum;
-            }
+         for (auto &itr: producer_to_last_implied_irb) {
+            if (itr.first == producer || itr.second >= block_num - 1 ||
+               confirmer_list.find(itr.first) != confirmer_list.end()) {
+                  if (itr.second < dpos_irreversible_blocknum) {
+                        itr.second = dpos_irreversible_blocknum;
+                  }
+               }
          }
          if (producer_to_last_implied_irb.find(producer) != producer_to_last_implied_irb.end())
             producer_to_last_implied_irb[producer] = dpos_proposed_irreversible_blocknum;
-         ilog("promote LIB for block ${n} to ${d}, propose ${p}", 
-            ("n", block_num)("d", dpos_irreversible_blocknum)("p", dpos_proposed_irreversible_blocknum));
+         ilog("block ${n}: promote LIB from ${o} to ${d}, propose_lib ${p}", 
+            ("n", block_num)("o", old_lib)("d", dpos_irreversible_blocknum)("p", dpos_proposed_irreversible_blocknum));
       } else {
-         ilog("LIB for block ${n} is ${d}, propose ${p}", 
+         ilog("block ${n}: LIB ${d}, propose_lib ${p}", 
            ("n", block_num)("d", dpos_irreversible_blocknum)("p", dpos_proposed_irreversible_blocknum));
       }
    }
