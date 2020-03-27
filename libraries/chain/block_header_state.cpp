@@ -63,13 +63,15 @@ namespace eosio { namespace chain {
       result.active_schedule_version                         = active_schedule.version;
       result.prev_activated_protocol_features                = activated_protocol_features;
 
-      result.prev_dpos_proposed_irreversible_blocknum        = dpos_proposed_irreversible_blocknum;
-
       result.valid_block_signing_authority                   = proauth.authority;
       result.producer                                        = proauth.producer_name;
 
       result.blockroot_merkle = blockroot_merkle;
       result.blockroot_merkle.append( id );
+
+      // for 1-sec LIB
+      result.prev_dpos_proposed_irreversible_blocknum        = dpos_proposed_irreversible_blocknum;
+      result.prev_producer                                   = header.producer;
 
       /// grow the confirmed count
       static_assert(std::numeric_limits<uint8_t>::max() >= (config::max_producers * 2 / 3) + 1, "8bit confirmations may not be able to hold all of the needed confirmations");
@@ -348,7 +350,7 @@ namespace eosio { namespace chain {
       size_t count = 0;
       for (auto &itr: producer_to_last_implied_irb) {
          ss2 << " " << itr.first << ":" << itr.second;
-         if (itr.first == producer || itr.second >= block_num - 1 ||
+         if (itr.first == producer || itr.first == prev_producer || itr.second >= block_num - 1 ||
             confirmer_list.find(itr.first) != confirmer_list.end()) {
                count++;
                ss2 << "*";
@@ -370,7 +372,7 @@ namespace eosio { namespace chain {
             confirm_count[0] = last;
          }
          for (auto &itr: producer_to_last_implied_irb) {
-            if (itr.first == producer || itr.second >= block_num - 1 ||
+            if (itr.first == producer || itr.first == prev_producer  || itr.second >= block_num - 1 ||
                confirmer_list.find(itr.first) != confirmer_list.end()) {
                   if (itr.second < dpos_irreversible_blocknum) {
                         itr.second = dpos_irreversible_blocknum;

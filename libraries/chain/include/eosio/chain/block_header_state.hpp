@@ -72,7 +72,9 @@ namespace detail {
 }
 
 struct pending_block_header_state : public detail::block_header_state_common {
+   // for 1-sec LIB purpose
    uint32_t                             prev_dpos_proposed_irreversible_blocknum = 0;
+   account_name                         prev_producer;
 
    protocol_feature_activation_set_ptr  prev_activated_protocol_features;
    detail::schedule_info                prev_pending_schedule;
