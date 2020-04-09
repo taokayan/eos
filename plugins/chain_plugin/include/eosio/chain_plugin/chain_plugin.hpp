@@ -286,6 +286,21 @@ public:
 
    fc::variant get_block_header_state(const get_block_header_state_params& params) const;
 
+   struct get_block_merkle_params {
+      string             block_num_or_id;
+      optional<chain::digest_type> transaction_id; 
+   };
+   struct get_block_merkle_result {
+      uint32_t             block_num;
+      chain::block_id_type        block_id;
+      chain::block_id_type        previous;
+      chain::digest_type          transaction_mroot;
+      vector<pair<chain::transaction_id_type, chain::digest_type> > transaction_receipt_digests;
+      vector<chain::digest_type>  merkle_path;
+      vector<char>                raw_transaction_recept;
+   };
+   get_block_merkle_result get_block_merkle(const get_block_merkle_params &params) const;
+
    struct get_table_rows_params {
       bool        json = false;
       name        code;
@@ -809,3 +824,6 @@ FC_REFLECT( eosio::chain_apis::read_only::abi_bin_to_json_params, (code)(action)
 FC_REFLECT( eosio::chain_apis::read_only::abi_bin_to_json_result, (args) )
 FC_REFLECT( eosio::chain_apis::read_only::get_required_keys_params, (transaction)(available_keys) )
 FC_REFLECT( eosio::chain_apis::read_only::get_required_keys_result, (required_keys) )
+
+FC_REFLECT( eosio::chain_apis::read_only::get_block_merkle_params, (block_num_or_id)(transaction_id))
+FC_REFLECT( eosio::chain_apis::read_only::get_block_merkle_result, (block_num)(block_id)(previous)(transaction_mroot)(transaction_receipt_digests)(merkle_path)(raw_transaction_recept) )

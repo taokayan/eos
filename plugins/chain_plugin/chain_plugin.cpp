@@ -2101,6 +2101,84 @@ fc::variant read_only::get_block_header_state(const get_block_header_state_param
    return vo;
 }
 
+read_only::get_block_merkle_result read_only::get_block_merkle(const read_only::get_block_merkle_params& params) const {
+   signed_block_ptr block;
+   optional<uint64_t> block_num;
+
+   EOS_ASSERT( !params.block_num_or_id.empty() && params.block_num_or_id.size() <= 64,
+               chain::block_id_type_exception,
+               "Invalid Block number or ID, must be greater than 0 and less than 64 characters"
+   );
+
+   try {
+      block_num = fc::to_uint64(params.block_num_or_id);
+   } catch( ... ) {}
+
+   if( block_num.valid() ) {
+      block = db.fetch_block_by_number( *block_num );
+   } else {
+      try {
+         block = db.fetch_block_by_id( fc::variant(params.block_num_or_id).as<block_id_type>() );
+      } EOS_RETHROW_EXCEPTIONS(chain::block_id_type_exception, "Invalid block ID: ${block_num_or_id}", ("block_num_or_id", params.block_num_or_id))
+   }
+
+   EOS_ASSERT( block, unknown_block_exception, "Could not find block: ${block}", ("block", params.block_num_or_id));
+
+   read_only::get_block_merkle_result result;
+   result.block_num = block->block_num();
+   result.block_id = block->id();
+   result.previous = block->previous;
+   result.transaction_mroot = block->transaction_mroot;
+
+   std::vector<chain::digest_type> ids;
+   int merkle_index = -1;
+   for (const transaction_receipt& r: block->transactions) {
+      transaction_id_type trx_id;
+      if (r.trx.contains<transaction_id_type>()) 
+         trx_id = r.trx.get<transaction_id_type>();
+      else if (r.trx.contains<packed_transaction>()) 
+         trx_id = r.trx.get<packed_transaction>().id();
+      chain::digest_type trx_receipt_digest = r.digest();
+      result.transaction_receipt_digests.emplace_back(trx_id, trx_receipt_digest);
+      ids.push_back(trx_receipt_digest);
+      if (params.transaction_id && trx_id == *params.transaction_id) {
+         merkle_index = ids.size() - 1;
+         fc::datastream<size_t> ds_size;
+         fc::raw::pack(ds_size, r);
+         result.raw_transaction_recept.resize(ds_size.tellp());
+         fc::datastream<char *> ds(&(result.raw_transaction_recept[0]), ds_size.tellp());
+         fc::raw::pack(ds, r);
+      }
+   }
+
+   EOS_ASSERT(!params.transaction_id || merkle_index >= 0, unknown_block_exception, "Could not find transaction in block: ${block}", ("block", params.block_num_or_id));
+
+   if (merkle_index >= 0) {
+      result.merkle_path.push_back(ids[merkle_index]);
+      while (ids.size() > 1) {
+         std::vector<chain::digest_type> merkle_nodes2;
+         if (ids.size() % 2) {
+            ids.push_back(ids.back());
+         }
+         for (size_t i = 0; i < ids.size() / 2; i++) {
+            if (2 * i == merkle_index) {
+               result.merkle_path.push_back(chain::make_canonical_right(ids[(2 * i) + 1]));
+            }
+            else if (2 * i + 1 == merkle_index) {
+               result.merkle_path.push_back(chain::make_canonical_left(ids[(2 * i)]));
+            }
+            ids[i] = chain::digest_type::hash(chain::make_canonical_pair(ids[2 * i], ids[(2 * i) + 1]));
+         }
+         ids.resize(ids.size() / 2);
+         merkle_index /= 2;
+      }
+      EOS_ASSERT(ids[0] == block->transaction_mroot, unknown_block_exception, "transaction_mroot not match"); // should not happen
+      result.merkle_path.push_back(ids[0]);
+   }
+
+   return result;
+}
+
 void read_write::push_block(read_write::push_block_params&& params, next_function<read_write::push_block_results> next) {
    try {
       app().get_method<incoming::methods::block_sync>()(std::make_shared<signed_block>(std::move(params)), {});
