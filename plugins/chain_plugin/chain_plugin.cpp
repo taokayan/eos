@@ -2134,9 +2134,9 @@ read_only::get_block_merkle_result read_only::get_block_merkle(const read_only::
    int merkle_index = -1;
    for (const transaction_receipt& r: block->transactions) {
       transaction_id_type trx_id;
-      if (r.trx.contains<transaction_id_type>()) 
+      if (r.trx.contains<transaction_id_type>())
          trx_id = r.trx.get<transaction_id_type>();
-      else if (r.trx.contains<packed_transaction>()) 
+      else if (r.trx.contains<packed_transaction>())
          trx_id = r.trx.get<packed_transaction>().id();
       chain::digest_type trx_receipt_digest = r.digest();
       result.transaction_receipt_digests.emplace_back(trx_id, trx_receipt_digest);
@@ -2154,7 +2154,6 @@ read_only::get_block_merkle_result read_only::get_block_merkle(const read_only::
    EOS_ASSERT(!params.transaction_id || merkle_index >= 0, unknown_block_exception, "Could not find transaction in block: ${block}", ("block", params.block_num_or_id));
 
    if (merkle_index >= 0) {
-      result.merkle_path.push_back(ids[merkle_index]);
       while (ids.size() > 1) {
          std::vector<chain::digest_type> merkle_nodes2;
          if (ids.size() % 2) {
@@ -2173,7 +2172,6 @@ read_only::get_block_merkle_result read_only::get_block_merkle(const read_only::
          merkle_index /= 2;
       }
       EOS_ASSERT(ids[0] == block->transaction_mroot, unknown_block_exception, "transaction_mroot not match"); // should not happen
-      result.merkle_path.push_back(ids[0]);
    }
 
    return result;
